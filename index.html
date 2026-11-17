@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Погода · Химки</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e141b;
+    --surface: #151d26;
+    --surface-2: #1b2530;
+    --border: #263342;
+    --ink: #e8eef4;
+    --muted: #8b9bab;
+    --accent: #4db8ff;
+    --warm: #ffb35c;
+    --cold: #6fc3df;
+    --danger: #ff6b6b;
+    --ok: #58d68d;
+    --radius: 10px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { background: var(--bg); }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 15px;
+    line-height: 1.45;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+  .wrap { max-width: 1060px; margin: 0 auto; padding: 28px 20px 48px; }
+
+  header {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 16px; flex-wrap: wrap;
+    padding-bottom: 16px; border-bottom: 1px solid var(--border);
+  }
+  h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+  h1 span { color: var(--muted); font-weight: 400; }
+  .status { font-size: 12.5px; color: var(--muted); text-align: right; }
+  .status .dot {
+    display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+    background: var(--ok); margin-right: 6px; vertical-align: 1px;
+  }
+  .status.err .dot { background: var(--danger); }
+  .status .dot.pulse { animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .35; } }
+
+  .now {
+    display: grid; grid-template-columns: auto 1fr; gap: 8px 36px;
+    align-items: start; padding: 28px 0 24px;
+  }
+  .now-temp {
+    font-size: clamp(72px, 12vw, 108px);
+    font-weight: 600; letter-spacing: -0.04em; line-height: 0.95;
+  }
+  .now-temp sup { font-size: .38em; font-weight: 500; color: var(--muted); top: -1.2em; }
+  .now-side { padding-top: 12px; min-width: 240px; }
+  .now-desc { font-size: 19px; font-weight: 600; }
+  .now-feel { font-size: 13.5px; color: var(--muted); margin-top: 2px; }
+  .sun {
+    margin-top: 12px; font-size: 13px; color: var(--muted);
+    display: flex; gap: 18px; flex-wrap: wrap;
+  }
+  .sun b { color: var(--ink); font-weight: 500; }
+
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px; margin-bottom: 22px;
+  }
+  .metric {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+  }
+  .metric .label { font-size: 11.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+  .metric .value { font-size: 21px; font-weight: 600; margin-top: 3px; }
+  .metric .value small { font-size: 13px; font-weight: 400; color: var(--muted); margin-left: 2px; }
+
+  section { margin-top: 6px; }
+  section h2 {
+    font-size: 12px; text-transform: uppercase; letter-spacing: .1em;
+    color: var(--muted); font-weight: 600; margin: 26px 0 10px;
+  }
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+  }
+  .chart { width: 100%; height: auto; display: block; }
+  .chart text { font-family: "IBM Plex Mono", monospace; }
+
+  .day-row {
+    display: grid;
+    grid-template-columns: 92px 30px 1fr 44px 44px;
+    align-items: center; gap: 14px;
+    padding: 9px 4px;
+    border-top: 1px solid var(--border);
+    font-size: 14px;
+  }
+  .day-row:first-child { border-top: none; }
+  .day-name { font-weight: 600; }
+  .day-name small { display: block; font-weight: 400; color: var(--muted); font-size: 12px; }
+  .day-ico { font-size: 17px; text-align: center; }
+  .bar { height: 5px; border-radius: 3px; background: var(--surface-2); position: relative; }
+  .bar i {
+    position: absolute; inset: 0 auto 0 0; border-radius: 3px;
+    background: linear-gradient(90deg, var(--cold), var(--warm));
+  }
+  .day-t { text-align: right; }
+  .day-t .max { font-weight: 600; }
+  .day-t .min { color: var(--muted); }
+
+  .precip-note { font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+  .state { padding: 60px 0; text-align: center; color: var(--muted); }
+  .state .big { font-size: 40px; margin-bottom: 12px; }
+  button.retry {
+    margin-top: 14px; background: var(--surface-2); color: var(--ink);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 9px 22px; font-size: 14px; cursor: pointer;
+    font-family: inherit;
+  }
+  button.retry:hover { border-color: var(--accent); }
+  .hidden { display: none; }
+
+  footer {
+    margin-top: 40px; padding-top: 14px; border-top: 1px solid var(--border);
+    font-size: 12px; color: var(--muted);
+    display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px;
+  }
+  footer a { color: var(--muted); }
+
+  @media (max-width: 560px) {
+    .now { grid-template-columns: 1fr; gap: 4px; }
+    .now-side { padding-top: 0; }
+    .day-row { grid-template-columns: 70px 26px 1fr 40px 40px; gap: 8px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .status .dot.pulse { animation: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Химки <span>· Московская область</span></h1>
+    <div class="status" id="status"><span class="dot pulse"></span>Загрузка…</div>
+  </header>
+
+  <div class="state" id="loading">
+    <div class="big">◌</div>
+    Запрашиваем данные метеостанции…
+  </div>
+  <div class="state hidden" id="error">
+    <div class="big">⚠</div>
+    <div>Не удалось получить данные о погоде.</div>
+    <button class="retry" onclick="load()">Повторить</button>
+  </div>
+
+  <div id="app" class="hidden">
+
+    <div class="now">
+      <div class="now-temp mono"><span id="curTemp">–</span><sup>°C</sup></div>
+      <div class="now-side">
+        <div class="now-desc" id="curDesc">—</div>
+        <div class="now-feel" id="curFeel">—</div>
+        <div class="sun" id="sunLine"></div>
+      </div>
+    </div>
+
+    <div class="metrics">
+      <div class="metric"><div class="label">Ветер</div><div class="value mono" id="mWind">—</div></div>
+      <div class="metric"><div class="label">Порывы</div><div class="value mono" id="mGust">—</div></div>
+      <div class="metric"><div class="label">Влажность</div><div class="value mono" id="mHum">—</div></div>
+      <div class="metric"><div class="label">Давление</div><div class="value mono" id="mPress">—</div></div>
+      <div class="metric"><div class="label">Осадки</div><div class="value mono" id="mPrecip">—</div></div>
+      <div class="metric"><div class="label">Облачность</div><div class="value mono" id="mCloud">—</div></div>
+    </div>
+
+    <section>
+      <h2>Ближайшие 24 часа</h2>
+      <div class="panel">
+        <svg class="chart" id="chart" viewBox="0 0 1000 190" role="img" aria-label="График температуры на 24 часа"></svg>
+        <div class="precip-note" id="chartNote"></div>
+      </div>
+    </section>
+
+    <section>
+      <h2 id="dailyTitle">Прогноз по дням</h2>
+      <div class="panel" id="daily"></div>
+    </section>
+
+    <footer>
+      <div>Координаты: 55.897° с.ш., 37.430° в.д. · Часовой пояс Europe/Moscow</div>
+      <div id="srcNote">Источник: … · обновление каждые 10 мин</div>
+    </footer>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  const REFRESH_MS = 10 * 60 * 1000;
+
+  const el = id => document.getElementById(id);
+  const pad = n => String(n).padStart(2, "0");
+  const hhmm = s => (s || "").slice(0, 5) || "—";
+  const fmtClock = () => {
+    const d = new Date();
+    return pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
+  };
+  const DIRS = ["С", "ССВ", "СВ", "ВСВ", "В", "ВЮВ", "ЮВ", "ЮЮВ", "Ю", "ЮЮЗ", "ЮЗ", "ЗЮЗ", "З", "ЗСЗ", "СЗ", "ССЗ"];
+  const dir16 = p => DIRS[Math.round((p % 360) / 22.5) % 16];
+  const mmHg = hPa => Math.round(Number(hPa) * 0.750064);
+
+  function setStatus(ok, text, pulse) {
+    const s = el("status");
+    s.classList.toggle("err", !ok);
+    s.innerHTML = '<span class="dot' + (pulse ? " pulse" : "") + '"></span>' + text;
+  }
+
+  function fetchJSON(url, ms) {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), ms || 9000);
+    return fetch(url, { signal: ctl.signal }).then(r => {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    }).finally(() => clearTimeout(t));
+  }
+
+  /* ── словари описаний погоды ── */
+
+  const WMO = {
+    0: ["Ясно", "☀️"], 1: ["Преимущественно ясно", "🌤"], 2: ["Переменная облачность", "⛅"],
+    3: ["Пасмурно", "☁️"], 45: ["Туман", "🌫"], 48: ["Изморозь", "🌫"],
+    51: ["Слабая морось", "🌦"], 53: ["Морось", "🌦"], 55: ["Сильная морось", "🌧"],
+    56: ["Ледяная морось", "🌧"], 57: ["Сильная ледяная морось", "🌧"],
+    61: ["Небольшой дождь", "🌦"], 63: ["Дождь", "🌧"], 65: ["Сильный дождь", "🌧"],
+    66: ["Ледяной дождь", "🌧"], 67: ["Сильный ледяной дождь", "🌧"],
+    71: ["Небольшой снег", "🌨"], 73: ["Снег", "🌨"], 75: ["Сильный снег", "❄️"],
+    77: ["Снежные зёрна", "🌨"], 80: ["Небольшой ливень", "🌦"], 81: ["Ливень", "🌧"],
+    82: ["Сильный ливень", "⛈"], 85: ["Снежный ливень", "🌨"], 86: ["Сильный снежный ливень", "❄️"],
+    95: ["Гроза", "⛈"], 96: ["Гроза с градом", "⛈"], 99: ["Сильная гроза с градом", "⛈"]
+  };
+  function wmo(code, isDay) {
+    const e = WMO[code] || ["—", "🛰"];
+    if (!isDay && (code === 0 || code === 1)) return [e[0], "🌙"];
+    return e;
+  }
+
+  const WCODE = {
+    113: ["Ясно", "☀️"], 116: ["Переменная облачность", "⛅"], 119: ["Облачно", "☁️"],
+    122: ["Пасмурно", "☁️"], 143: ["Дымка", "🌫"], 248: ["Туман", "🌫"], 260: ["Туман", "🌫"],
+    176: ["Возможен небольшой дождь", "🌦"], 263: ["Слабая морось", "🌦"], 266: ["Морось", "🌦"],
+    281: ["Ледяная морось", "🌧"], 284: ["Сильная ледяная морось", "🌧"],
+    293: ["Небольшой дождь", "🌦"], 296: ["Небольшой дождь", "🌧"], 299: ["Дождь", "🌧"],
+    302: ["Дождь", "🌧"], 305: ["Сильный дождь", "🌧"], 308: ["Сильный дождь", "🌧"],
+    311: ["Ледяной дождь", "🌧"], 314: ["Сильный ледяной дождь", "🌧"],
+    353: ["Ливень", "🌦"], 356: ["Сильный ливень", "🌧"], 359: ["Очень сильный ливень", "⛈"],
+    200: ["Гроза", "⛈"], 386: ["Гроза с ливнем", "⛈"], 389: ["Сильная гроза", "⛈"],
+    179: ["Возможен снег", "🌨"], 323: ["Небольшой снег", "🌨"], 326: ["Небольшой снег", "🌨"],
+    227: ["Снег", "🌨"], 329: ["Снег", "🌨"], 332: ["Снег", "🌨"],
+    230: ["Метель", "❄️"], 335: ["Сильный снег", "❄️"], 338: ["Сильный снег", "❄️"],
+    182: ["Мокрый снег", "🌨"], 185: ["Мокрый снег", "🌨"], 350: ["Мокрый снег", "🌨"],
+    362: ["Мокрый снег", "🌨"], 365: ["Мокрый снег", "🌨"], 368: ["Снежный ливень", "🌨"],
+    371: ["Сильный снежный ливень", "❄️"], 374: ["Ледяной дождь", "🌧"], 377: ["Ледяная морось", "🌧"],
+    381: ["Небольшой снежный ливень", "🌨"], 384: ["Сильный снежный ливень", "❄️"]
+  };
+  const wttrCode = c => WCODE[Number(c)] || ["—", "🛰"];
+
+  /* ── источник 1: Open-Meteo ── */
+
+  const OM_URL =
+    "https://api.open-meteo.com/v1/forecast" +
+    "?latitude=55.897&longitude=37.4297" +
+    "&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day," +
+    "precipitation,weather_code,cloud_cover,pressure_msl," +
+    "wind_speed_10m,wind_direction_10m,wind_gusts_10m" +
+    "&hourly=temperature_2m,precipitation_probability,precipitation" +
+    "&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset" +
+    "&timezone=Europe%2FMoscow&forecast_days=7";
+
+  function fromOpenMeteo(d) {
+    const c = d.current;
+    const [desc, ico] = wmo(c.weather_code, c.is_day);
+    const nowHour = new Date().toISOString().slice(0, 13);
+    let i0 = d.hourly.time.findIndex(t => t.slice(0, 13) >= nowHour);
+    if (i0 < 0) i0 = 0;
+    const H = 24;
+    const hours = [];
+    for (let i = i0; i < Math.min(i0 + H, d.hourly.time.length); i++) {
+      hours.push({
+        label: d.hourly.time[i].slice(11, 16),
+        temp: d.hourly.temperature_2m[i],
+        prob: d.hourly.precipitation_probability[i] || 0,
+        pm: d.hourly.precipitation[i] || 0
+      });
+    }
+    const DAYS = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"];
+    const MON = ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
+    const days = d.daily.time.map((t, i) => {
+      const dt = new Date(t + "T12:00");
+      const [, di] = wmo(d.daily.weather_code[i], 1);
+      return {
+        name: i === 0 ? "Сегодня" : DAYS[dt.getDay()],
+        dateLabel: dt.getDate() + " " + MON[dt.getMonth()],
+        icon: di, max: d.daily.temperature_2m_max[i], min: d.daily.temperature_2m_min[i]
+      };
+    });
+    return {
+      source: "Open-Meteo · прогноз на 7 дней",
+      temp: c.temperature_2m, feel: c.apparent_temperature, desc, icon: ico,
+      cloud: c.cloud_cover, hum: c.relative_humidity_2m,
+      wind: c.wind_speed_10m, windDir: dir16(c.wind_direction_10m), gust: c.wind_gusts_10m,
+      press: mmHg(c.pressure_msl), precip: c.precipitation, prob: hours[0] ? hours[0].prob : null,
+      sunrise: hhmm(d.daily.sunrise[0]), sunset: hhmm(d.daily.sunset[0]),
+      hours, days
+    };
+  }
+
+  /* ── источник 2: wttr.in (фолбэк) ── */
+
+  const WTTR_URL = "https://wttr.in/55.897,37.4297?format=j1";
+
+  function fromWttr(d) {
+    const c = d.current_condition[0];
+    const [desc, ico] = wttrCode(c.weatherCode);
+    // ближайшие 24 часа: сегодня + завтра, шаг 3 ч
+    const slots = [];
+    d.weather.slice(0, 2).forEach(day => {
+      day.hourly.forEach(h => slots.push({
+        label: pad(Math.floor(Number(h.time) / 100)) + ":" + pad(Number(h.time) % 100),
+        temp: Number(h.tempC), prob: Number(h.chanceofrain), pm: Number(h.precipMM)
+      }));
+    });
+    const nowSlot = Math.floor(new Date().getHours() / 3) * 3;
+    let i0 = slots.findIndex(s => Number(s.label.slice(0, 2)) >= nowSlot);
+    if (i0 < 0) i0 = 0;
+    const hours = slots.slice(i0, i0 + 8);
+
+    const DAYS = ["Воскресенье", "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"];
+    const MON = ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
+    const days = d.weather.map((day, i) => {
+      const dt = new Date(day.date + "T12:00");
+      const [, di] = wttrCode(day.hourly[4].weatherCode);
+      return {
+        name: i === 0 ? "Сегодня" : DAYS[dt.getDay()],
+        dateLabel: dt.getDate() + " " + MON[dt.getMonth()],
+        icon: di, max: Number(day.maxtempC), min: Number(day.mintempC)
+      };
+    });
+    const a = d.weather[0].astronomy[0];
+    return {
+      source: "wttr.in · прогноз на 3 дня",
+      temp: Number(c.temp_C), feel: Number(c.FeelsLikeC), desc, icon: ico,
+      cloud: Number(c.cloudcover), hum: Number(c.humidity),
+      wind: Number(c.windspeedKmph), windDir: dir16(Number(c.winddirDegree)), gust: null,
+      press: mmHg(c.pressure), precip: Number(c.precipMM),
+      prob: hours[0] ? hours[0].prob : null,
+      sunrise: a.sunrise, sunset: a.sunset,
+      hours, days
+    };
+  }
+
+  /* ── отрисовка из единой модели ── */
+
+  function render(m) {
+    el("loading").classList.add("hidden");
+    el("error").classList.add("hidden");
+    el("app").classList.remove("hidden");
+
+    el("curTemp").textContent = Math.round(m.temp);
+    el("curDesc").textContent = m.icon + " " + m.desc;
+    el("curFeel").textContent = "Ощущается как " + Math.round(m.feel) + "°C · облачность " + m.cloud + "%";
+
+    const parseT = s => {
+      const m = String(s || "").trim().match(/(\d+):(\d+)\s*(AM|PM)?/i);
+      if (!m) return { txt: "—", min: 0 };
+      let h = +m[1]; const min = +m[2];
+      const ap = m[3] ? m[3].toUpperCase() : null;
+      if (ap === "PM" && h < 12) h += 12;
+      if (ap === "AM" && h === 12) h = 0;
+      return { txt: pad(h) + ":" + pad(min), min: h * 60 + min };
+    };
+    const sr = parseT(m.sunrise), ss = parseT(m.sunset);
+    const dayLen = (ss.min - sr.min) / 60;
+    el("sunLine").innerHTML =
+      "Восход <b class='mono'>" + sr.txt + "</b> · Закат <b class='mono'>" + ss.txt +
+      "</b> · День <b class='mono'>" + dayLen.toFixed(1).replace(".", ",") + " ч</b>";
+
+    el("mWind").innerHTML = Math.round(m.wind) + "<small>км/ч " + m.windDir + "</small>";
+    el("mGust").innerHTML = m.gust != null ? Math.round(m.gust) + "<small>км/ч</small>" : "—";
+    el("mHum").innerHTML = Math.round(m.hum) + "<small>%</small>";
+    el("mPress").innerHTML = m.press + "<small>мм рт. ст.</small>";
+    el("mPrecip").innerHTML = (Math.round(m.precip * 10) / 10) + "<small>мм</small>";
+    el("mCloud").innerHTML = Math.round(m.cloud) + "<small>%</small>";
+
+    drawChart(m.hours);
+    const sumP = m.hours.reduce((a, h) => a + h.pm, 0);
+    el("chartNote").textContent = "Сумма осадков за 24 ч: " + (Math.round(sumP * 10) / 10) +
+      " мм · столбики — вероятность осадков, %";
+
+    el("dailyTitle").textContent = "Прогноз на " + m.days.length +
+      (m.days.length === 7 ? " дней" : " дня");
+
+    const gMin = Math.min(...m.days.map(d => d.min));
+    const gMax = Math.max(...m.days.map(d => d.max));
+    const span = Math.max(gMax - gMin, 1);
+    el("daily").innerHTML = m.days.map(d => {
+      const left = ((d.min - gMin) / span) * 100;
+      const width = Math.max(((d.max - d.min) / span) * 100, 4);
+      return '<div class="day-row">' +
+        '<div class="day-name">' + d.name + "<small>" + d.dateLabel + "</small></div>" +
+        '<div class="day-ico">' + d.icon + "</div>" +
+        '<div class="bar"><i style="left:' + left + "%;width:" + width + '%"></i></div>' +
+        '<div class="day-t mono"><span class="max">' + Math.round(d.max) + "°</span></div>" +
+        '<div class="day-t mono"><span class="min">' + Math.round(d.min) + "°</span></div>" +
+        "</div>";
+    }).join("");
+
+    el("srcNote").innerHTML = "Источник: " + m.source +
+      " · обновление каждые 10 мин · <a href='https://open-meteo.com' target='_blank' rel='noopener'>open-meteo.com</a> / <a href='https://wttr.in' target='_blank' rel='noopener'>wttr.in</a>";
+    setStatus(true, "Обновлено в " + fmtClock(), false);
+  }
+
+  function drawChart(hours) {
+    const W = 1000, Hh = 190, padL = 34, padR = 10, padT = 18, padB = 30;
+    const iw = W - padL - padR, ih = Hh - padT - padB;
+    const temps = hours.map(h => h.temp);
+    const tMin = Math.min(...temps), tMax = Math.max(...temps);
+    const range = Math.max(tMax - tMin, 2);
+    const x = i => padL + (i / Math.max(hours.length - 1, 1)) * iw;
+    const y = t => padT + (1 - (t - (tMin - range * 0.1)) / (range * 1.2)) * ih;
+
+    const pts = temps.map((t, i) => x(i).toFixed(1) + "," + y(t).toFixed(1)).join(" ");
+    const parts = pts.split(" ");
+    const first = parts[0].split(",")[0], last = parts[parts.length - 1].split(",")[0];
+    const base = (padT + ih).toFixed(1);
+
+    let svg = "";
+    [tMin, (tMin + tMax) / 2, tMax].forEach((t, k) => {
+      const yy = y(t).toFixed(1);
+      svg += '<line x1="' + padL + '" y1="' + yy + '" x2="' + (W - padR) + '" y2="' + yy +
+        '" stroke="#263342" stroke-width="1"' + (k === 1 ? ' stroke-dasharray="3 5"' : "") + "/>";
+      svg += '<text x="' + (padL - 6) + '" y="' + (Number(yy) + 4) + '" fill="#8b9bab" font-size="11" text-anchor="end">' +
+        Math.round(t) + "°</text>";
+    });
+    const barW = iw / hours.length * 0.55;
+    hours.forEach((h, i) => {
+      if (!h.prob) return;
+      const bh = (h.prob / 100) * ih * 0.9;
+      svg += '<rect x="' + (x(i) - barW / 2).toFixed(1) + '" y="' + (padT + ih - bh).toFixed(1) +
+        '" width="' + barW.toFixed(1) + '" height="' + bh.toFixed(1) +
+        '" rx="2" fill="#4db8ff" opacity="0.22"/>';
+    });
+    svg += '<polygon points="' + first + "," + base + " " + pts + " " + last + "," + base +
+      '" fill="#4db8ff" opacity="0.10"/>';
+    svg += '<polyline points="' + pts + '" fill="none" stroke="#4db8ff" stroke-width="2.5" ' +
+      'stroke-linejoin="round" stroke-linecap="round"/>';
+    svg += '<circle cx="' + x(0).toFixed(1) + '" cy="' + y(temps[0]).toFixed(1) +
+      '" r="4" fill="#ffb35c"/>';
+    hours.forEach((h, i) => {
+      if (i % 3 !== 0) return;
+      svg += '<text x="' + x(i).toFixed(1) + '" y="' + (Hh - 8) + '" fill="#8b9bab" font-size="11" text-anchor="middle">' +
+        h.label + "</text>";
+    });
+
+    const chart = el("chart");
+    chart.setAttribute("viewBox", "0 0 " + W + " " + Hh);
+    chart.innerHTML = svg;
+  }
+
+  /* ── загрузка с фолбэком ── */
+
+  function load() {
+    setStatus(true, "Обновляем…", true);
+    fetchJSON(OM_URL, 8000)
+      .then(fromOpenMeteo)
+      .catch(() => fetchJSON(WTTR_URL, 9000).then(fromWttr))
+      .then(render)
+      .catch(err => {
+        console.error(err);
+        if (el("app").classList.contains("hidden")) {
+          el("loading").classList.add("hidden");
+          el("error").classList.remove("hidden");
+          setStatus(false, "Ошибка сети", false);
+        } else {
+          setStatus(false, "Ошибка обновления · показаны последние данные", false);
+        }
+      });
+  }
+
+  window.load = load; // для кнопки «Повторить»
+  load();
+  setInterval(load, REFRESH_MS);
+})();
+</script>
+</body>
+</html>
